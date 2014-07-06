@@ -129,6 +129,7 @@ angular.module('ui.bootstrap.modal', ['ui.bootstrap.transition'])
       var backdropDomEl, backdropScope;
       var openedWindows = $$stackedMap.createNew();
       var $modalStack = {};
+	  var tababbleSelector = 'a[href], area[href], input:not([disabled]), button:not([disabled]),select:not([disabled]), textarea:not([disabled]), iframe, object, embed, *[tabindex], *[contenteditable]';
 
       function backdropIndex() {
         var topBackdropIndex = -1;
@@ -221,6 +222,40 @@ angular.module('ui.bootstrap.modal', ['ui.bootstrap.transition'])
           }
         }
       });
+        // this is very simple and probably could be improved on, but it works well as a start
+        function firstInputOf(domEl, level) {
+            // see: http://stackoverflow.com/a/7668761/2499165
+           var elements = domEl[0].querySelectorAll();
+            var focusableElement = domEl[0];
+            for (var i = 0; i < elements.length; i++) {
+                if (elements[i].tabindex != '-1' && elements[i].hidden === false) {
+                    focusableElement = elements[i];
+                    break;
+                }
+            }
+            return focusableElement;
+        }
+
+        var focusInHandler = function (evt) {
+            /* sk. Check if stack not empty before calling "value" property on modalWindow
+             bug in IE9 */
+            if (openedWindows.top() !== undefined && openedWindows.top() != null) {
+                var modalWindow;
+                modalWindow = openedWindows.top().value;
+
+                var elementAboutToReceiveFocus = evt.target;
+				var allTabbableElements = element.querySelectorAll(tabbableElements);
+				var firstTabbableElement = allTabbableElements[0];
+				var lastTabbableElement = allTabbableElements[allTabbableElements.length - 1];
+
+                if (!modalWindow.modalDomEl[0].contains(elementAboutToReceiveFocus)) {
+                    var firstInput = firstInputOf(modalWindow.modalDomEl, 0);
+                    if (firstInput !== elementAboutToReceiveFocus && firstInput) {
+                        firstInput.focus();
+                    }
+                }
+            }
+        };
 
       $modalStack.open = function (modalInstance, modal) {
 
@@ -256,9 +291,24 @@ angular.module('ui.bootstrap.modal', ['ui.bootstrap.transition'])
         openedWindows.top().value.modalDomEl = modalDomEl;
         body.append(modalDomEl);
         body.addClass(OPENED_MODAL_CLASS);
+		//  See if we're in a non-IE browser and fallback to use focus on capture for all others
+		if ($document[0].addEventListener) {
+			$document[0].addEventListener('focus', focusInHandler, true);
+		}
+		else {
+			$document.unbind('focusin');
+			$document.bind('focusin', focusInHandler);
+		}
+
       };
 
       $modalStack.close = function (modalInstance, result) {
+            if ($document[0].removeEventListener) {
+                $document[0].removeEventListener('focus', focusInHandler, true);
+            }
+            else {
+                $document.unbind('focusin');
+            }
         var modalWindow = openedWindows.get(modalInstance);
         if (modalWindow) {
           modalWindow.value.deferred.resolve(result);
