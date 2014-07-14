@@ -129,7 +129,6 @@ angular.module('ui.bootstrap.modal', ['ui.bootstrap.transition'])
       var backdropDomEl, backdropScope;
       var openedWindows = $$stackedMap.createNew();
       var $modalStack = {};
-	  var tababbleSelector = 'a[href], area[href], input:not([disabled]), button:not([disabled]),select:not([disabled]), textarea:not([disabled]), iframe, object, embed, *[tabindex], *[contenteditable]';
 
       function backdropIndex() {
         var topBackdropIndex = -1;
@@ -212,50 +211,110 @@ angular.module('ui.bootstrap.modal', ['ui.bootstrap.transition'])
       $document.bind('keydown', function (evt) {
         var modal;
 
-        if (evt.which === 27) {
-          modal = openedWindows.top();
-          if (modal && modal.value.keyboard) {
-            evt.preventDefault();
-            $rootScope.$apply(function () {
-              $modalStack.dismiss(modal.key, 'escape key press');
-            });
-          }
-        }
+        switch (evt.which) {
+         case  27: // ESC
+            modal = openedWindows.top();
+            if (modal && modal.value.keyboard) {
+               evt.preventDefault();
+               $rootScope.$apply(function () {
+                 $modalStack.dismiss(modal.key, 'escape key press');
+               });
+            }
+            break;
+
+         case 9: // TAB
+            tabKeyDownHandler(evt);
+            break;
+
+         // could add Return => close dialog
+         default:
+            return;
+         }
       });
-        // this is very simple and probably could be improved on, but it works well as a start
-        function firstInputOf(domEl, level) {
-            // see: http://stackoverflow.com/a/7668761/2499165
-           var elements = domEl[0].querySelectorAll();
-            var focusableElement = domEl[0];
-            for (var i = 0; i < elements.length; i++) {
-                if (elements[i].tabindex != '-1' && elements[i].hidden === false) {
-                    focusableElement = elements[i];
-                    break;
-                }
+
+      var tabKeyDownHandler = function (event) {
+         var tababbleSelector = 'a[href], area[href], input:not([disabled]), button:not([disabled]),select:not([disabled]), textarea:not([disabled]), iframe, object, embed, *[tabindex], *[contenteditable]';
+
+         // return if we have no modal going on
+         if (openedWindows.top() === undefined || openedWindows.top() === null) {
+            return;
+         }
+
+         /* sk. Check if stack not empty before calling "value" property on modalWindow
+          bug in IE9 */
+         var modalWindow = openedWindows.top().value;
+
+         // only calculate the tab order once. Since it IS Angular, we may want to remove this and
+         // recalculate each time (to handle dynamically hidden or readonly'd items)
+         if (!modalWindow.tabOrder)
+         {
+            modalWindow.tabOrder = [];
+            var positiveTabindexElements = [],
+               zeroOrUndefinedTabindexElements = [],
+               allTabbableElements = modalWindow.modalDomEl[0].querySelectorAll(tababbleSelector);
+
+            for (var i = 0, il = allTabbableElements.length; i < il; i++) {
+               var curElement = allTabbableElements[i];
+               if (curElement.tabIndex >= 0 &&
+                  !curElement.disabled &&
+                  !curElement.hidden &&
+                  !curElement.readOnly &&
+                  curElement.type !== 'hidden') {
+                  if (curElement.tabIndex > 0) {
+                     positiveTabindexElements.push(curElement);
+                  }
+                  else {
+                     zeroOrUndefinedTabindexElements.push(curElement);
+                  }
+               }
             }
-            return focusableElement;
-        }
 
-        var focusInHandler = function (evt) {
-            /* sk. Check if stack not empty before calling "value" property on modalWindow
-             bug in IE9 */
-            if (openedWindows.top() !== undefined && openedWindows.top() != null) {
-                var modalWindow;
-                modalWindow = openedWindows.top().value;
+            positiveTabindexElements.sort(function(a,b){ return a.tabIndex - b.tabIndex; });
 
-                var elementAboutToReceiveFocus = evt.target;
-				var allTabbableElements = element.querySelectorAll(tabbableElements);
-				var firstTabbableElement = allTabbableElements[0];
-				var lastTabbableElement = allTabbableElements[allTabbableElements.length - 1];
+            modalWindow.tabOrder = positiveTabindexElements.concat(zeroOrUndefinedTabindexElements);
+         }
 
-                if (!modalWindow.modalDomEl[0].contains(elementAboutToReceiveFocus)) {
-                    var firstInput = firstInputOf(modalWindow.modalDomEl, 0);
-                    if (firstInput !== elementAboutToReceiveFocus && firstInput) {
-                        firstInput.focus();
-                    }
-                }
+         if (modalWindow.tabOrder.length === 0) {
+            return;
+         }
+
+         // Polyfill to prevent the default behavior of events
+         event.preventDefault = event.preventDefault || function () {
+            event.returnValue = false;
+         };
+
+         // In IE9 the first tab after modal opens takes you to the modal div and the focus is not dependable.
+         // So if we find tab takes us to a DIV element, then force focus on our first tabble element. Tab cycling works perfect from there on out.
+         if (event.target.nodeName == 'DIV') {
+            event.preventDefault();
+            modalWindow.tabOrder[0].focus();
+            return;
+         }
+
+         // Find the next element in the tabbing order and focus it.
+         // Required to prevent the browser from tabbing into any qualified fields in the background.
+         for (var j = 0, jl = modalWindow.tabOrder.length; j < jl; j++) {
+
+            if (event.target === modalWindow.tabOrder[j]) {
+               var offset = event.shiftKey ? -1 : 1;
+               var nextIndex = j+offset;
+               var adjustedIndex = nextIndex;
+
+               if (nextIndex < 0) {
+                  adjustedIndex = modalWindow.tabOrder.length - 1;
+               }
+               else if (nextIndex > modalWindow.tabOrder.length - 1) {
+                  adjustedIndex = 0;
+               }
+
+               event.preventDefault();
+               var focusElement = modalWindow.tabOrder[adjustedIndex];
+               focusElement.focus();
+
+               break;
             }
-        };
+         }
+      };
 
       $modalStack.open = function (modalInstance, modal) {
 
@@ -291,29 +350,18 @@ angular.module('ui.bootstrap.modal', ['ui.bootstrap.transition'])
         openedWindows.top().value.modalDomEl = modalDomEl;
         body.append(modalDomEl);
         body.addClass(OPENED_MODAL_CLASS);
-		//  See if we're in a non-IE browser and fallback to use focus on capture for all others
-		if ($document[0].addEventListener) {
-			$document[0].addEventListener('focus', focusInHandler, true);
-		}
-		else {
-			$document.unbind('focusin');
-			$document.bind('focusin', focusInHandler);
-		}
 
       };
 
       $modalStack.close = function (modalInstance, result) {
-            if ($document[0].removeEventListener) {
-                $document[0].removeEventListener('focus', focusInHandler, true);
-            }
-            else {
-                $document.unbind('focusin');
-            }
+      var body = $document.find('body').eq(0);
+
         var modalWindow = openedWindows.get(modalInstance);
         if (modalWindow) {
           modalWindow.value.deferred.resolve(result);
           removeModalWindow(modalInstance);
         }
+
       };
 
       $modalStack.dismiss = function (modalInstance, reason) {

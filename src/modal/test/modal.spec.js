@@ -2,78 +2,45 @@ describe('$modal', function () {
   var $controllerProvider, $rootScope, $document, $compile, $templateCache, $timeout, $q;
   var $modal, $modalProvider;
 
-  var triggerKeyDown2 = function(k) {
+  // using TAB takes special fu in testing
+  var triggerKeyDownHefty = function(k,useShift) {
     var oEvent = document.createEvent('KeyboardEvent');
 
     // Chromium Hack
     Object.defineProperty(oEvent, 'keyCode', {
-                get : function() {
-                    return this.keyCodeVal;
-                }
-    });     
+             get : function() {
+                 return this.keyCodeVal;
+             }
+    });
     Object.defineProperty(oEvent, 'which', {
-                get : function() {
-                    return this.keyCodeVal;
-                }
-    });     
+             get : function() {
+                 return this.keyCodeVal;
+             }
+    });
 
     if (oEvent.initKeyboardEvent) {
-        oEvent.initKeyboardEvent("keydown", true, true, null, 0, false, 0, false, k, 0);
+     oEvent.initKeyboardEvent('keydown', true, true, null, k, useShift ? 'Shift' : '', false, null);
     } else {
-        oEvent.initKeyEvent("keydown", true, true, null, false, false, false, false, 0, k);
+     oEvent.initKeyEvent('keydown', true, true, null, false, false, useShift, false, k, 0);
     }
 
     oEvent.keyCodeVal = k;
 
     if (oEvent.keyCode !== k) {
-        alert("keyCode mismatch " + oEvent.keyCode + "(" + oEvent.which + ")");
+     alert('keyCode mismatch ' + oEvent.keyCode + '(' + oEvent.which + ')');
     }
 
     document.activeElement.dispatchEvent(oEvent);
-};
-  var triggerTab = function(element) {
-     triggerKeyDown2(9);
-	 //triggerKeyPress(element,9);
-	 //triggerKeyUp(element,9);
-  }
+  };
+  var triggerTab = function() {
+     triggerKeyDownHefty(9, false);
+  };
+  var triggerShiftTab = function() {
+     triggerKeyDownHefty(9,true);
+  };
+
   var triggerKeyDown = function (element, keyCode) {
     var e = $.Event('keydown');
- e.altGraphKey = false;
-e.altKey = false;
-e.bubbles = true;
-e.cancelBubble = false;
-e.cancelable = true;
-e.charCode = keyCode;
-e.clipboardData = undefined;
-e.ctrlKey = false;
-e.currentTarget = element[0];
-e.defaultPrevented = false;
-e.detail = 0;
-e.eventPhase = 2;
-e.keyCode = keyCode;
-e.keyIdentifier = "";
-e.keyLocation = 0;
-e.layerX = 0;
-e.layerY = 0;
-e.metaKey = false;
-e.pageX = 0;
-e.pageY = 0;
-e.returnValue = true;
-e.shiftKey = false;
-e.srcElement = element[0];
-e.target = element[0];
-e.type = "keydown";
-e.view = Window;
-e.which = keyCode;
-    element.trigger(e);
-  };
-  var triggerKeyUp = function (element, keyCode) {
-    var e = $.Event('keyup');
-    e.which = keyCode;
-    element.trigger(e);
-  };
-  var triggerKeyPress = function (element, keyCode) {
-    var e = $.Event('keypress');
     e.which = keyCode;
     element.trigger(e);
   };
@@ -145,14 +112,14 @@ e.which = keyCode;
         return modalDomEls.css('display') === 'block' &&  contentToCompare.html() == content;
       },
 
-	  toHaveActiveElementWithId: function(activeId) {
-	  this.message = function() {
-			return 'Expected document to have activeElement with id "' + activeId + '", but was "' + this.actual.unwrap()[0].activeElement.id + '".';
-	   }
-	  
-		return this.actual.unwrap()[0].activeElement.id == activeId;
-	  },
-	  
+     toHaveActiveElementWithId: function(activeId) {
+     this.message = function() {
+         return 'Expected document to have activeElement with id "' + activeId + '", but was "' + this.actual.unwrap()[0].activeElement.id + '".';
+      };
+
+      return this.actual.unwrap()[0].activeElement.id == activeId;
+     },
+
       toHaveModalsOpen: function(noOfModals) {
 
         var modalDomEls = this.actual.find('body > div.modal');
@@ -195,32 +162,13 @@ e.which = keyCode;
     $timeout.flush();
     $rootScope.$digest();
   }
-  
+
   function tellActiveElement() {
-	  console.log('AE: ' + window.document.activeElement.localName + ': ' + window.document.activeElement.className);
+     console.log('AE: ' + window.document.activeElement.localName + ': ' + window.document.activeElement.className);
   }
 
+
   describe('basic scenarios with default options', function () {
-	it('should keep the focus within the modal while tabbing', function () {
-    //jasmine.Clock.useMock();
-
-      var modal = open({template: '<div>Content<form><input type="text" id="textinput1" tabindex="1"/><button id="button1">OK</button></form></div>'});
-      expect($document).toHaveModalsOpen(1);
-      $timeout.flush();
-      $rootScope.$digest();
-	  tellActiveElement();
-	  //debugger;
-	  
-      triggerTab();
-      $rootScope.$digest();
-
-	  tellActiveElement();
-
-	  //triggerKeyDown($document, 9);
-      //$timeout.flush();
-//debugger;
-      expect($document).toHaveActiveElementWithId('textinput1');
-    });
 
     it('should open and dismiss a modal with a minimal set of options', function () {
 
@@ -309,11 +257,6 @@ e.which = keyCode;
       expect($document).toHaveModalsOpen(0);
     });
 
-
-	
-	// HERE
-	
-	
     it('should resolve returned promise on close', function () {
       var modal = open({template: '<div>Content</div>'});
       close(modal, 'closed ok');
@@ -346,8 +289,70 @@ e.which = keyCode;
     });
 
   });
+  
+  describe('modal tabbing feature', function() {
+   it('should move focus to first tabbable item on first tab keypress after modal opens', function () {
 
-  xdescribe('default options can be changed in a provider', function () {
+      var modal = open({template: '<div>Content<form><input type="text" id="textinput1" tabindex="1"/><button id="button1">OK</button></form></div>'});
+      expect($document).toHaveModalsOpen(1);
+      $timeout.flush();
+      triggerTab($document);
+      //tellActiveElement();
+      expect($document).toHaveActiveElementWithId('textinput1');
+    });
+   it('should wrap focus back to the first tabbable element when tabbing from last tabbable element ', function () {
+
+      var modal = open({template: '<div>Content<form><input type="text" id="textinput1" tabindex="1"/><button id="button1">OK</button></form></div>'});
+      expect($document).toHaveModalsOpen(1);
+      $timeout.flush();
+      triggerTab($document);
+      triggerTab($document);
+      expect($document).toHaveActiveElementWithId('button1');
+      //tellActiveElement();
+      triggerTab($document);
+      expect($document).toHaveActiveElementWithId('textinput1');
+    });
+   it('should move focus back to the previous tabbable element on shift-TAB', function () {
+
+      var modal = open({template: '<div>Content<form><input type="text" id="textinput1" tabindex="1"/><button id="button1">OK</button></form></div>'});
+      expect($document).toHaveModalsOpen(1);
+      $timeout.flush();
+      triggerTab($document);
+      expect($document).toHaveActiveElementWithId('textinput1');
+      triggerTab($document);
+      expect($document).toHaveActiveElementWithId('button1');
+      triggerShiftTab();
+      expect($document).toHaveActiveElementWithId('textinput1');
+    });
+   it('should tab to the first tabbable element with a tabindex', function () {
+
+      var modal = open({template: '<div>Content<form><input type="text" id="textinput1"/><button id="button1" tabindex="1">OK</button></form></div>'});
+      expect($document).toHaveModalsOpen(1);
+      $timeout.flush();
+      triggerTab($document);
+      expect($document).toHaveActiveElementWithId('button1');
+     });
+
+   it('should tab to all elements with a tabindex before tabbing to elements without a tabindex', function () {
+      var modal = open({template: '<div>Content<form><input type="text" id="textinput1"/><button id="button1" tabindex="1">OK</button><button id="button2" tabindex="2">Cancel</button></form></div>'});
+      expect($document).toHaveModalsOpen(1);
+      $timeout.flush();
+      triggerTab($document);
+      triggerTab($document);
+      triggerTab($document);
+      expect($document).toHaveActiveElementWithId('textinput1');
+     });
+   it('should skip all elements with a tabindex value of -1', function () {
+      var modal = open({template: '<div>Content<form><input type="text" id="textinput1" tabindex="1"/><button id="button1" tabindex="-1">OK</button><button id="button2" tabindex="2">Cancel</button></form></div>'});
+      expect($document).toHaveModalsOpen(1);
+      $timeout.flush();
+      triggerTab($document);
+      triggerTab($document);
+      expect($document).toHaveActiveElementWithId('button2');
+     });
+  });
+
+  describe('default options can be changed in a provider', function () {
 
     it('should allow overriding default options in a provider', function () {
 
@@ -370,7 +375,7 @@ e.which = keyCode;
     });
   });
 
-  xdescribe('option by option', function () {
+  describe('option by option', function () {
 
     describe('template and templateUrl', function () {
 
@@ -649,7 +654,7 @@ e.which = keyCode;
     });
   });
 
-  xdescribe('multiple modals', function () {
+  describe('multiple modals', function () {
 
     it('it should allow opening of multiple modals', function () {
 

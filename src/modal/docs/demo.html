@@ -9,11 +9,18 @@
                     <a ng-click="selected.item = item">{{ item }}</a>
                 </li>
             </ul>
-            Selected: <b>{{ selected.item }}</b>
+            Selected: <b>{{ selected.item }}</b><br>
+			<select tabindex="1" ><option>Opt One</option><option>Opt Two</option></select> (1)&nbsp;&nbsp;<br><br>
+			<input type="text" tabindex="3" width="30" value="(3)" /><br><br>
+			(-1) <input type="checkbox" tabindex="-1" /> Skipped!<br><br>
+			<input type="text" width="30" tabindex="5" value="(5)" /><br><br>
+			<input type="text" width="30" value="no tabindex (7)" /><br><br>
+			<input type="text" width="30" value="no tabindex (8)" /><br><br>
+			<textarea name="mytextarea" rows="4" width="30" tabindex="2">(2)</textarea>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-primary" ng-click="ok()">OK</button>
-            <button class="btn btn-warning" ng-click="cancel()">Cancel</button>
+            <button class="btn btn-primary" ng-click="ok()" tabindex="4">OK (4)</button>
+            <button class="btn btn-warning" ng-click="cancel()" tabindex="6" (>Cancel (6)</button>
         </div>
     </script>
 
